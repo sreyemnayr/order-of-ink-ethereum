@@ -1,0 +1,10 @@
+dependencies:
+  - chiru-labs/ERC721A@4.2.2
+  - OpenZeppelin/openzeppelin-contracts@4.8.0
+  - sreyemnayr/operator-filter-registry@1.4.0
+autofetch_sources: true
+networks:
+  development:
+    cmd_settings:
+      accounts: 50
+      default_balance: 2000000000

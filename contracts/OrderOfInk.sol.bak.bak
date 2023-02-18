@@ -1,0 +1,437 @@
+// SPDX-License-Identifier: MIT
+//
+//
+//                              ▐▌▀▀▀▀*∞w▄▄
+//                       ╓▄▄▄mKK╣▌          ─╙?∞▄,
+//                ,▄Æ▀▀╙└       ╞▌           ~.   └7w,
+//             ▄▀▀└             ╞▌                .   └W
+//          ▄▀╙              ┌▄▄██▄▄▄,              '    *
+//        ▄▀¬        .~▄#▀▀╙└         ─└╙▀▀W▄▄        ^    ¼
+//       █┘     .⌐` ,█▀' ,▄▀▀╙└└└    `¬.    ~ └▀▀▄,     ¼   \
+//      █U  ,⌐     █▀  ╓▀└   ▄██████▄    `    ┐   └▀%▄   t   ┌
+//      ▌,⌐`      ▐▌  ▐▌   ████████████        ─      ╙▀▄▐
+// ¬┘   ▌^w       ╟µ  ▐▌   ████████████    >   ═      ,▄▀▐   └└
+//  \   █   "w     █,  ╙▄   ╙▀██████▀╙   ┌┘   ╛    ,Æ▀└  ╛
+//   ┐   █     ─"w, ╙¼,  └▀wµ        ,»⌐└   A└ ,▄▀╙     Æ
+//    \   ▀▄       ¬"ⁿ═█╗▄,   ─└────    ▄p█═⌐▀┘       ,▀
+//     "┐   ▀▄            └└╙╙7²%▌²7╙└└└            ▄┘
+//       └V   └▀▄               ╟▌               ▄²└
+//          └∞▄   └▀═▄,         ╞▌          ╓÷²└
+//             ¬└Yw▄   ¬└└²²**≈═╫▌≈≈⌐⌐²²└└¬
+//                   └┘ΓY*═▄▄▄▄▄╟▌
+//
+//
+//                       The Order of Ink
+//                Smart Contract by Ryan Meyers
+//
+//               Generosity attracts generosity
+//             The world will be saved by beauty
+//
+
+pragma solidity ^0.8.17;
+
+import "chiru-labs/ERC721A@4.2.2/contracts/extensions/ERC721AQueryable.sol";
+import "OpenZeppelin/openzeppelin-contracts@4.8.0/contracts/access/Ownable.sol";
+import "OpenZeppelin/openzeppelin-contracts@4.8.0/contracts/token/common/ERC2981.sol";
+import "OpenZeppelin/openzeppelin-contracts@4.8.0/contracts/utils/cryptography/draft-EIP712.sol";
+import "OpenZeppelin/openzeppelin-contracts@4.8.0/contracts/utils/cryptography/ECDSA.sol";
+
+import "sreyemnayr/operator-filter-registry@1.4.0/contracts/RevokableDefaultOperatorFilterer.sol";
+import "sreyemnayr/operator-filter-registry@1.4.0/contracts/UpdatableOperatorFilterer.sol";
+
+
+contract OrderOfInk is ERC2981, EIP712, ERC721AQueryable, Ownable, RevokableDefaultOperatorFilterer {
+
+  // event Inked(uint256 );
+
+  error InvalidMintKey();
+  error InsufficientAmountSent();
+  error PublicSaleNotStarted();
+  error NoMoreThanTwentyPerTransaction();
+  error ExceedsAllowance();
+  error ExceedsMaxSupply();
+  error WalletNotSender();
+
+    struct MintKey {
+      address wallet;
+      uint8 free;
+      uint8 allowed;
+    }
+
+    bytes32 private constant MINTKEY_TYPE_HASH = keccak256("MintKey(address wallet,uint8 free,uint8 allowed)");
+
+    address private _signer;
+    address private _receiver;
+    
+    uint8 public session = 1;
+    uint public constant SESSION_ONE_GOLD_PRICE = 0.4 ether;
+    uint public constant SESSION_TWO_GOLD_PRICE = 0.5 ether;
+    uint public constant SESSION_ONE_BLACK_PRICE = 0.08 ether;
+    uint public constant SESSION_TWO_BLACK_PRICE = 0.123 ether;
+    
+    string public baseURI;
+
+    address private constant _TEAM = 0x4Bd4660654bD0458cE21d8C21e47F811c2b40956;
+
+    uint private constant _maxSupply = 4444;
+    uint private constant _maxGoldSupply = 70;
+
+    uint private _goldMinted = 0;
+
+    uint private constant _teamBlackMints = 150;
+    uint private constant _teamGoldMints = 10;
+
+
+    constructor(
+      string memory name,
+      string memory symbol,
+      address signer,
+      address receiver
+    )
+     ERC721A(name, symbol)
+     EIP712(name, "1")
+    {
+      _signer = signer;
+      _receiver = receiver;
+      
+      _setDefaultRoyalty(receiver, 1000);
+      baseURI = "https://theorderofink.com/api/";
+      _mint(_TEAM, _teamGoldMints);
+      _goldMinted += _teamGoldMints;
+      _setExtraDataAt(1, 1); // Gold / No preference
+      _mint(_TEAM, _teamBlackMints);
+
+    }
+
+
+    //                                       ]╙▌
+    //                                       ╙─▐ ╥
+    //                                        ─Ñ▄▌ └W,
+    //     µ▄▄╓                                ▌▀█═c┌ ▄▌Æ┬
+    //   ▌' ,,  '┐┘²7∞┬┐▄                   ┐d╙ █
+    //  ▀    `       █▓   └┌└─█ T⌐≈¥W╥m≈⌐²└└   ▀
+    //  █                      █     '\     ██─
+    //   ▌                ┬               ▄▀
+    //    └|²ⁿTt*╖o▄              ▀   ,x▀─
+    //       ▓▐▀▌▌▓▌▌▄r╓,  ┌█▓╢══çµ═▀┘
+    //                    └└▀══µa▄▌▌═
+    //
+    //  
+    //
+    function startNextSession() onlyOwner external {
+      session++;
+    }
+
+
+
+    //              ..▀█o
+    //           ⌐ ┌▐████▄ "
+    //       Æ¥¥µ  ▄██████▌  ╘
+    //     ┌▀ ╙ └▀╣▓╬╬╣╬▓▓▓▓  Γ   ╓═X
+    //     ▌   \▐ ╙▓╬╬╬╬╬╬╬╬╬ ∩▄#╙ ╗▄
+    //     ▄~ \░▒µ ⁿ╝▓╬╠╠╠╠╠▒╬▀╬░¡ ┐▌
+    //     ▌▄K░░╟▓  ^╜▀▓▀▀▀▀╗▀▒╬▒╪ ╫µ
+    //    ╣▓▐Q▒║Å▓ /` .` (A╘║W▓█╣▒g▀╙
+    //   ▐▌╨▓µ¥▓█▀⌠∞   ,^Ç `▒╛b╙▀▌ ▌
+    //    .╬▓▓ ╙ |╛'∩Q▓▌▀▓▄φ▒ └╖▓▀█µ
+    //   ,▒╟╬╬╬▓√ ⌐ƒ▒▓╠▓▄#▀▒╬  ╙▌#▓╬╦
+    //  {│φ▄╬╬░░▀▌:-╙╬▒╩,;#≥╠▒. ▒▄▒╚╙b
+    //   \ ╧░└"└j█▓▄>ç╙╙║Γ╜ⁿ└╟╬▓▀▌░░Ä
+    //    └     ╠╙╩▀▀╥▄▄▌▀QQ▄╢▓▓▀└'╛
+    //     └   ▐ '  |    ╙▀╬▀▀▌  ,┘
+    //       ╥▓▄▌ ∩ ⌐   ⌐  └ ▐▄▓J
+    //        ▀▒█▓▌╫▄╫▌▄▓µ▓╦▓█▒▌
+    //         ╙╚╬╬╬╫S▄▄▄╫╬╣╣╚╩
+    //          ╙Å▒╧╩▓▓╟▓Å╧╜▀▀
+    //            ╩Q^╫▀▓▌^T▒─
+    //             VΓ ╙╙ ▐¥
+    //              ¼Ä  ▀Æ
+    //               ╘ÅÅΓ
+    //                └┘
+    //
+    function getInked(bytes calldata signature, MintKey calldata key, uint8 howManyBlack, uint8 howManyGold, uint24 choiceData) external payable {
+      uint8 howMany = howManyGold + howManyBlack + key.free;
+      uint256 nextTokenId;
+      
+      
+      if (totalSupply() + howMany > _maxSupply) revert ExceedsMaxSupply();
+      if (msg.value < ((blackPrice() * howManyBlack) + (goldPrice() * howManyGold))) revert InsufficientAmountSent();
+
+      if (session < 3){
+        if (_numberMinted(msg.sender) + howMany > key.allowed) revert ExceedsAllowance();
+        if (msg.sender != key.wallet) revert WalletNotSender();
+        if (!autoclave(signature, key)) revert InvalidMintKey();
+        
+        if (0 < key.free) {
+        if (totalSupply() + key.free <= _maxSupply){
+          if (_getAux(msg.sender) == 0) {
+              nextTokenId = _nextTokenId();
+              _mint(msg.sender, key.free);
+              _setExtraDataAt(nextTokenId, choiceData);
+              _setAux(msg.sender, _getAux(msg.sender) + key.free);
+            }
+          }
+        }
+      }
+
+      if(howManyBlack > 0){
+        nextTokenId = _nextTokenId();
+        _mint(msg.sender, howManyBlack);
+        _setExtraDataAt(nextTokenId, choiceData);
+      }
+      if(howManyGold > 0){
+        if (howManyGold > goldRemaining()) revert ExceedsMaxSupply();
+        nextTokenId = _nextTokenId();
+        _goldMinted += howManyGold;
+        _mint(msg.sender, howManyGold);
+        _setExtraDataAt(nextTokenId, choiceData+1);
+      }
+
+    }
+
+    
+      
+    //                                ,
+    //                       "δ≥  φ╧╙└
+    //                 ,,,,╓╓╦▄▓███▓╗╓,
+    //    ,╦▄▓▓╬╬╣╣╣▓▓╣╫█▓╫▓██████████▓╬╠╬▓╬╬▓▓▒▒╦╗╓
+    //  ,▓█▓█▓╬╬╬▓███▌╚▓╬▓███████████████▓╬▓╩╬██▓╣▓▓▓█▌▄
+    //  ▓╬▓███╬▒░▓███▌╠╣▓█▓█████Q▄████▓▓██▓╬▒▓████╠╣╫██▓█#
+    //  ╙█▓▄╬▀▀▓╣╣╬╣▀╬▓▓╫╣▌╣╬▓▓▒▓████╬▓╣╬▓▓╬▓╬╣▓█▌▌▓█▓██▓▓Ö
+    //     └╙▀▓▄╟▀▀╣▓▀▀▓███▄▓▓▌▒╙▀██▌╣▓▄▓▓▓▓▓█▓█▓▓▀╠▄█▓▀▀
+    //         └╙▀▀▓╣▄#╫███╫╠▓▒╬▓█▓█▒▒░▓███╫▄▄▄▄╣▓▓▀╙
+    //             ▓▒╢▓▓▓▓╣▓██▓▌██▓██▌╣▌▓▓╬▓█▒█─
+    //              ╙╣▄▄╠▀▀▀╬▒╥╨  ╙█╩▀▀██▓▀╬▄▓▀
+    //                  ╙▀▀╙▀└     └╙▀╝▀▀▀▀▀└
+    function noRagrets(uint256 tokenId) public {
+        _burn(tokenId, true);
+    }
+
+    
+
+
+    //                                ,,µ▄▌└▌,
+    //                            ▄▀╩  ╤  £Æ╬─╙▄
+    //                         ▄▓▌   \,╫ ^j▐-  ╙µ
+    //                      ,▄▌╘╙▀ ▀▄  \Uk╓½ ┬,╓▌
+    //   ,µ▄╥µ▄          ▄▄▌╙█╙╙⌐.╬¥╓µ─└╙╚╙╙*╩▌╙~-─╥
+    //  ╙└└ ─╙¥▓▀▄   µ#▓─╬▓▌ ▌ ╙ç ▌Φ╘  çb ▄╓    ╙▀▄▓╛
+    //          ▀▓▓▐╟▄,▓▐Γ▌▌ ╙  µ└▀▀╗╝Φ▀╪╞▄╝T╙╙▀╙╙
+    //          ▄▀▄╩▐╞╘▐╫k╙╫▄Σ▄▄╟▄▀
+    //         ▐╨═▓▐▌j▄▌▓▌╟▌▓▀Φ▀└
+    //         ▌m▄▓▐Å▀}▓▀╙─
+    //        ▐ ▀▀▓█┘▐▌
+    //        ╣▄K▌╫▄æ▀
+    //       ▐█j▌▐▀▄▀
+    //       ▌,▀ ▐.▌
+    //      ▐ ╫  ╫¬▌
+    //      ▀,╪  ▌ ▌
+    //
+    function autoclave(bytes calldata signature, MintKey calldata key) public view returns (bool) {
+    bytes32 digest = _hashTypedDataV4(
+        keccak256(
+            abi.encode(
+                MINTKEY_TYPE_HASH,
+                msg.sender, // this line was the biggest problem in the botted version of this contract.
+                key.free,
+                key.allowed
+            )
+        )
+      );
+
+      return ECDSA.recover(digest, signature) == _signer;
+    }
+
+
+
+    //       ╓µ
+    //      ╞██ ,▄▐▌
+    //       ██⌐└▓▓█▓█ ╓▄
+    //       ╙█Φ▀▄▓███▓▀╓▄,
+    //  j▒    µ Φ▓▓█████▀╙─
+    //   M    ▀    ▓███▀█
+    //        ▒▄▄, █ ▌▀⌐ '~
+    //   ▄   ████▒▄▄╟█▀\  ╫▐ µ
+    //  ▐████████████████▄████
+    //   ███████▀▀╙╙╙▀▀███████▒
+    //   █████╨.▓█████▌ ╙█████▌,
+    //  ]████▌ ╣████████▌ ╟███▓█⌐
+    //   ╙████ ███▓╬╬╣███  █████
+    //    █████╙████████▀  ███▀╙
+    //    │█████▄╙▀▀▀▀▀─ ▄████▌
+    //     ████████████████████▒
+    //     █████████████████╙██╙
+    //     ████████╣▓╬╫▌╬▄╬▀▌█▀   ,▓█▄
+    //     █████████╬╫╬╫▓▓▓╫╬▓██▄▀█ ██▌
+    //     ╛██████████▓▓▓█▓╣▓░██▄█▓███
+    //     ▄ ████████▀███████████▀▐█▐▌
+    //     █▓██╬▀╙ ,,,            ▐██
+    //     ██▀▀█"─▓█─└╫▄         └█▀
+    //     █▀ "╙  ██┘▀▄└╬▀▄▄,,,▄#▀
+    //     ▀      .,  ▐██▄*.,
+    //        ▄▓▄    '╚╫█▀▀▓╗▄▄ ─└└
+    //      ▄"╫███▄▄▀▀╙▄▄█████▄╓
+    //      ▓▄Σ┬,,▄▄▓███▓████████
+    //       └╙▀▀▀╨╨╚╩╩╬╬▓███▀╙╙╙
+    //                   └
+    //
+    function cashOut() public payable {
+      require(payable(_receiver).send(address(this).balance));
+    }
+
+    function setDefaultRoyaltyReceiver(address receiver) external onlyOwner {
+      _setDefaultRoyalty(receiver, 1000);
+      _receiver = receiver;
+    }
+
+
+
+    //         ,▄████████▌╥
+    //       ╓██████████████▄
+    //      ╣█████▓▓╣▓▓▓█████▌
+    //     ╠▓▓███╬╣Å▒▒╠▌▌███▓▓▌
+    //     ▌▓▓██████▓▓███████▓╬⌐
+    //    j╟╬▓▒ë⌂╕,    ,«TêÉ╫╫╠▌
+    //    ▐╠╬██▓▀╝▓╬  ╠▓▀╩╫██╣╠▌
+    //    ▐╚╠▓╬▀Θ²╙└░,┘╙"²▀╬█╠▒▌
+    //    ▐╠╬╬╬ε   ç▒φ░   ,╣╣╠╠▌
+    //    ▐╣╬█'░░  ╙▀▀╙  ;░└█╣╬▌
+    //    ▐▓▓██, *Φ▓▓▓▓▀═  ▓█▓▓▌
+    //    ▐█████▄  ╙╙╙╙  ▄▓████▌
+    //    ▐████▌░╙▒╦╥╥╦#▀└╙████▌
+    //    ▓████░    └^    φ█████
+    //  æΦ█▀▓Q╩╞¼        6╡╝b╬▀▀▀╥
+    //  ╫,¥╬Åσ▐÷Γ¼¬    ⌐¥▐}Γ}Å╬Mç╝
+    //   ╟-╚▄j¼m╔╛,`  "┐└æbMΓ▄╩-╢
+    //    ²,╙▒░╥,"⌐  ¬ ."g╓│#▒.ó
+    //      X VÜε)  ⌐¬  τ,ÜΓ Æ
+    //        *,`╚▄╠▒b╠▄Å^,<─
+    //          '╙qµ   µ╜`
+    //
+    function tattooReveal(string memory newBaseURI) public onlyOwner {
+      baseURI = newBaseURI;
+    }
+
+    // Utility view functions for mint page - not meant to be called on-chain
+
+    function goldRemaining() public view returns (uint256) {
+      return _maxGoldSupply - _goldMinted;
+    }
+
+    function blackRemaining() public view returns (uint256) {
+      return _maxSupply - totalSupply() - goldRemaining();
+    }
+
+    function blackPrice() public view returns (uint256) {
+      if(session > 1){
+        return SESSION_TWO_BLACK_PRICE;
+      }
+      return SESSION_ONE_BLACK_PRICE;
+    }
+
+    function goldPrice() public view returns (uint256) {
+      if(session > 1){
+        return SESSION_TWO_GOLD_PRICE;
+      }
+      return SESSION_ONE_GOLD_PRICE;
+    }
+
+    function mintInfo() public view returns (uint256, uint256, uint256, uint256, uint256) {
+      return (blackRemaining(), blackPrice(), goldRemaining(), goldPrice(), session);
+    }
+
+    function _baseURI() internal view override returns (string memory) {
+        return baseURI;
+    }
+
+    // Override to support royalties via ERC2981
+    function supportsInterface(
+    bytes4 interfaceId
+    ) public view virtual override(IERC721A, ERC721A, ERC2981) returns (bool) {
+        // Supports the following `interfaceId`s:
+        // - IERC165: 0x01ffc9a7
+        // - IERC721: 0x80ac58cd
+        // - IERC721Metadata: 0x5b5e139f
+        // - IERC2981: 0x2a55205a
+        return 
+            ERC721A.supportsInterface(interfaceId) ||
+            ERC2981.supportsInterface(interfaceId);
+    }
+
+    // Maintain extraData upon transfers - will be used for artist preferences and mint types.
+    function _extraData(
+        address, // from,
+        address, // to,
+        uint24 previousExtraData
+    ) internal pure override returns (uint24) {
+      return previousExtraData;
+    }
+
+    /**
+     * @dev See {IERC721-setApprovalForAll}.
+     *      In this example the added modifier ensures that the operator is allowed by the OperatorFilterRegistry.
+     */
+    function setApprovalForAll(address operator, bool approved) public override(ERC721A, IERC721A) onlyAllowedOperatorApproval(operator) {
+        super.setApprovalForAll(operator, approved);
+    }
+
+    /**
+     * @dev See {IERC721-approve}.
+     *      In this example the added modifier ensures that the operator is allowed by the OperatorFilterRegistry.
+     */
+    function approve(address operator, uint256 tokenId) public override(ERC721A, IERC721A) onlyAllowedOperatorApproval(operator) {
+        super.approve(operator, tokenId);
+    }
+
+    /**
+     * @dev See {IERC721-transferFrom}.
+     *      In this example the added modifier ensures that the operator is allowed by the OperatorFilterRegistry.
+     */
+    function transferFrom(address from, address to, uint256 tokenId) public override(ERC721A, IERC721A) onlyAllowedOperator(from) {
+        super.transferFrom(from, to, tokenId);
+    }
+
+    /**
+     * @dev See {IERC721-safeTransferFrom}.
+     *      In this example the added modifier ensures that the operator is allowed by the OperatorFilterRegistry.
+     */
+    function safeTransferFrom(address from, address to, uint256 tokenId) public override(ERC721A, IERC721A) onlyAllowedOperator(from) {
+        super.safeTransferFrom(from, to, tokenId);
+    }
+
+    /**
+     * @dev See {IERC721-safeTransferFrom}.
+     *      In this example the added modifier ensures that the operator is allowed by the OperatorFilterRegistry.
+     */
+    function safeTransferFrom(address from, address to, uint256 tokenId, bytes memory data)
+        public
+        override(ERC721A, IERC721A)
+        onlyAllowedOperator(from)
+    {
+        super.safeTransferFrom(from, to, tokenId, data);
+    }
+
+    /**
+     * @dev See {ERC721A-_startTokenId}.
+     *  Start at tokenId 1 instead of 0.
+     */
+    function _startTokenId() internal pure override returns (uint256) {
+        return 1;
+    }
+
+    /**
+     * @dev See {Ownable-owner}.
+     *      Thanks, OpenSea
+     */
+    function owner() public view override(Ownable, UpdatableOperatorFilterer) returns(address) {
+      return super.owner();
+    }
+
+
+
+}
+
+//
+// Congratulations, you made it to the end of the Smart Contract! 
+// Go mint a fork and feed someone in New Orleans: https://forkhunger.art
+//
