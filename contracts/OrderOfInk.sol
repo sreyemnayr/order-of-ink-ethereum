@@ -84,13 +84,13 @@ contract OrderOfInk is ERC2981, EIP712, ERC721AQueryable, Ownable, RevokableDefa
 
     
     /* C                 ,  */
-    /* O               ▐ █ */ address private constant _TEAM = 0x4Bd4660654bD0458cE21d8C21e47F811c2b40956;
+    /* O               ▐ █ */ address private constant _TEAM = 0x5e5A5450548829Ad30B10Bcb81c4Cf5Fb609FEff;
     /* N               ▄██ */                   uint public constant SESSION_ONE_BLACK_PRICE = 0.08 ether;
     /* S               ╫█ ▓▌ */                   uint public constant SESSION_ONE_GOLD_PRICE = 0.4 ether;
     /* T           ▀▓▄ ▌█╜╟▌ */                uint public constant SESSION_TWO_BLACK_PRICE = 0.123 ether;
     /* A             ╙▀╝█▌▀  ▄ */                 uint public constant SESSION_TWO_GOLD_PRICE = 0.5 ether;
     /* N      ▐╣╣╣╣╣╬▀▄   ⌐▐█▀ */                                 uint private constant _maxSupply = 4444;
-    /* T      ▐╣╣╣╣╣╣ ╙▀ █╦██▀╙ */                              uint private constant _maxGoldSupply = 70;
+    /* T      ▐╣╣╣╣╣╣ ╙▀ █╦██▀╙ */                              uint private constant _maxGoldSupply = 67;
     /* S      ▐╣╣╣╬▓╣    ╚  █ */                              uint private constant _teamBlackMints = 150;
     /*        ▐╣╣╣╣╬█▌   | ╫█▀┌▄C */                            uint private constant _teamGoldMints = 10;
     /*        ▐╣╣╣╣╣╣w█=,╫▌▓▓█▀ */
@@ -158,7 +158,7 @@ contract OrderOfInk is ERC2981, EIP712, ERC721AQueryable, Ownable, RevokableDefa
 
       uint256 nextTokenId;
       uint8 howMany = howManyGold + howManyBlack;
-      
+
       // if there are free tokens in the mint key, check if they're already minted
       // if not, add them to the "howMany" variable.
       if(0<key.free){ howMany += key.free - uint8(_getAux(msg.sender)); }
@@ -189,10 +189,14 @@ contract OrderOfInk is ERC2981, EIP712, ERC721AQueryable, Ownable, RevokableDefa
           if (aux < key.free) {
               // set the aux before minting to avoid reentrancy attacks
               _setAux(msg.sender, key.free);
-              // mint the free tokens
-              _mint(msg.sender, key.free - aux);
+              // add the free tokens to the black tokens being minted
+              howManyBlack += uint8(key.free - aux);
             }
         }
+      } else {
+        // no more than 10 of any tier per mint transaction in public sale
+        if(howManyGold > 10) revert ExceedsAllowance();
+        if(howManyBlack > 10) revert ExceedsAllowance();
       }
 
       // if the mint includes editions of 8/15...
@@ -289,35 +293,35 @@ contract OrderOfInk is ERC2981, EIP712, ERC721AQueryable, Ownable, RevokableDefa
 
 
      /*                    .⌐≈*/
-     /*      ,⌐"^ⁿ   ┌¬*  ┘    */
-     /*    ,.▌    j  ▐   ▐   ,═\``*/
-     /* ε`    ]──,╨¬}J   ⌐¬'\     */
-     /* └ç   j    ─  {┴∞*,  ,Γ```▀*/
-     /*   '7T─ⁿ╗-╫-─└│   ,▌─     */
-     /*   ┘    ▌  ╞Y `─ ƒ ⌐ \  ,*/
-     /*  ╘  .─└└.,╛ \    */
-     /*                  */
-     /*              Γ   */ function startNextSession(
-     /*  A           ▐   */ ) onlyOwner external {
-     /*  D            µ  */  session++; }
-     /*  M          ,,╞ , */   
-     /*  I         ⌐   p⌡  */  function cashOut(
-     /*  N         ▌¬¬¬╧▌¬¬`*/  ) public payable { 
-     /*                 ▌    */ require(payable( 
-     /*           ┘    j ─   */  _receiver).send( 
-     /*           ─    ▐ ╘    */ address(this).balance));}
-     /*          ⌠     ╞  µ   */ 
-     /*          b     │  Γ    */ function setDefaultRoyalty(
-     /*         j      │  ╞    */  address receiver, uint96 points
-     /*         ╞      │  ▐     */  ) external onlyOwner {
-     /*         ▐      │  j     */ _setDefaultRoyalty(receiver, points);
-     /*         j      Γ        */ _receiver = receiver; }
-     /*          ─     ═   ⌐     */
-     /*          ▌    j    \     */ function tattooReveal(
-     /*          ╘    ▐     p   */ string memory newBaseURI
-     /*           \            ,*/ ) public onlyOwner { 
-     /*            \         ,*/ baseURI = newBaseURI; }
-     /*            '"¬───¬`'*/
+     /*      ,⌐"^ⁿ   ┌¬*  ┘    */ function setDefaultRoyalty(
+     /*    ,.▌    j  ▐   ▐   ,═\``*/ address receiver, uint96 points
+     /* ε`    ]──,╨¬}J   ⌐¬'\     */ ) external onlyOwner {
+     /* └ç   j    ─  {┴∞*,  ,Γ```▀*/  _setDefaultRoyalty(receiver, points);
+     /*   '7T─ⁿ╗-╫-─└│   ,▌─     */  _receiver = receiver; }
+     /*   ┘    ▌  ╞Y `─ ƒ ⌐ \  ,*/ 
+     /*  ╘  .─└└.,╛ \    */  function startNextSession() onlyOwner external {
+     /*                  */   session++; }
+     /*              Γ   */    
+     /*  A           ▐   */   function withdraw() public payable {(bool success, ) = payable(
+     /*  D            µ  */    _receiver).call{value: address(this).balance}("");
+     /*  M          ,,╞ , */    require(success); }
+     /*  I         ⌐   p⌡  */   
+     /*  N         ▌¬¬¬╧▌¬¬`*/   function tattooReveal(string memory newBaseURI
+     /*                 ▌    */  ) public onlyOwner { 
+     /*           ┘    j ─   */   baseURI = newBaseURI; }
+     /*           ─    ▐ ╘    */  
+     /*          ⌠     ╞  µ   */   function eject() public onlyOwner {
+     /*          b     │  Γ    */  if (blackRemaining() > 0) {
+     /*         j      │  ╞    */   if (blackRemaining() > 250) { _mint(_TEAM, 250); }
+     /*         ╞      │  ▐     */   else { _mint(_TEAM, blackRemaining()); }}
+     /*         ▐      │  j     */    if(goldRemaining() > 0) {
+     /*         j      Γ        */     uint _goldRemaining = goldRemaining();
+     /*          ─     ═   ⌐     */    _goldMinted += _goldRemaining;
+     /*          ▌    j    \     */    uint nextTokenId = _nextTokenId();
+     /*          ╘    ▐     p   */    _mint(_TEAM, _goldRemaining);
+     /*           \            ,*/   _setExtraDataAt(nextTokenId, 1); }}
+     /*            \         ,*/    
+     /*            '"¬───¬`'*/     
 
 
     /*         ,▄████████▌╥ */

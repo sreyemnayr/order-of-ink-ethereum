@@ -199,7 +199,7 @@ def test_out_of_mints(accounts, contract, signing_account):
       0,
       {"from": accounts[i], "value": 192 * Wei("0.08 ether")}
     )
-  for i in range(1,13):
+  for i in range(1,12):
     contract.getInked(
       signer.signature(accounts[i].address, 0, 255),
       (accounts[i].address, 0, 255),
@@ -208,6 +208,14 @@ def test_out_of_mints(accounts, contract, signing_account):
       0,
       {"from": accounts[i], "value": 5 * Wei("0.4 ether")}
     )
+  contract.getInked(
+    signer.signature(accounts[12].address, 0, 255),
+    (accounts[12].address, 0, 255),
+    3,
+    2,
+    0,
+    {"from": accounts[12], "value": 3 * Wei("0.08 ether") + 2 * Wei("0.4 ether")}
+  )
   
   assert contract.totalSupply() == 4444
   
@@ -266,7 +274,7 @@ def test_free_mints(accounts, contract, signing_account):
     )
   
   assert contract.balanceOf(accounts[1].address) == 2
-  assert contract.explicitOwnershipOf(161)[3] == 0
+  # assert contract.explicitOwnershipOf(161)[3] == 0 # re-enable if free mints go to surprise-me
   assert contract.explicitOwnershipOf(162)[3] == pack_choices([1,2,3,4,5])
 
   contract.getInked(
@@ -293,15 +301,15 @@ def test_free_mints(accounts, contract, signing_account):
     )
 
   assert contract.balanceOf(accounts[2].address) == 1
-  assert contract.explicitOwnershipOf(164)[3] == 0
+  assert contract.explicitOwnershipOf(164)[3] == pack_choices([6,7,8,9,10])
+  # assert contract.explicitOwnershipOf(164)[3] == 0 # re-enable if free mints go to surprise-me
 
 
 
 
 
 
-
-def test_sellout_cashOut(accounts, contract, signing_account):
+def test_sellout_withdraw(accounts, contract, signing_account):
   signer = SignatureFactory(verifyingContract=contract.address, signer=signing_account);
 
   
@@ -314,7 +322,7 @@ def test_sellout_cashOut(accounts, contract, signing_account):
       0,
       {"from": accounts[i], "value": 192 * Wei("0.08 ether")}
     )
-  for i in range(1,13):
+  for i in range(1,12):
     contract.getInked(
       signer.signature(accounts[i].address, 0, 255),
       (accounts[i].address, 0, 255),
@@ -323,8 +331,16 @@ def test_sellout_cashOut(accounts, contract, signing_account):
       0,
       {"from": accounts[i], "value": 5 * Wei("0.4 ether")}
     )
+  contract.getInked(
+    signer.signature(accounts[12].address, 0, 255),
+    (accounts[12].address, 0, 255),
+    3,
+    2,
+    0,
+    {"from": accounts[12], "value": 3 * Wei("0.08 ether") + 2 * Wei("0.4 ether")}
+  )
   
-  expected_balance = Wei("337.92 ether") + Wei("24 ether")
+  expected_balance = 4227 * Wei("0.08 ether") + 57 * Wei("0.4 ether")
   
   assert contract.totalSupply() == 4444
 
@@ -332,7 +348,7 @@ def test_sellout_cashOut(accounts, contract, signing_account):
 
   previous_balance = accounts[0].balance()
 
-  contract.cashOut({"from": accounts[2], "value": 0})
+  contract.withdraw({"from": accounts[2], "value": 0})
 
   assert contract.balance() == 0
 
@@ -424,6 +440,79 @@ def test_combines(accounts, contract, signing_account):
 
   assert contract.explicitOwnershipOf(161)[2] == True
   assert contract.explicitOwnershipOf(353)[3] == 1
+
+
+@pytest.mark.eject
+def test_eject(accounts, contract, signing_account):
+  signer = SignatureFactory(verifyingContract=contract.address, signer=signing_account)
+
+  for i in range(1,23):
+    contract.getInked(
+      signer.signature(accounts[i].address, 0, 255),
+      (accounts[i].address, 0, 255),
+      100,
+      0,
+      0,
+      {"from": accounts[i], "value": 100 * Wei("0.08 ether")}
+    )
+  for i in range(1,13):
+    contract.getInked(
+      signer.signature(accounts[i].address, 0, 255),
+      (accounts[i].address, 0, 255),
+      0,
+      1,
+      0,
+      {"from": accounts[i], "value": 5 * Wei("0.4 ether")}
+    )
+  
+  assert contract.blackRemaining() == 2027
+  assert contract.goldRemaining() == 45
+
+  contract.eject({"from": accounts[0]})
+
+  assert contract.blackRemaining() == 1777
+  assert contract.goldRemaining() == 0
+
+  contract.eject({"from": accounts[0]})
+
+  assert contract.blackRemaining() == 1527
+  assert contract.goldRemaining() == 0
+
+  contract.eject({"from": accounts[0]})
+
+  assert contract.blackRemaining() == 1277
+  assert contract.goldRemaining() == 0
+
+  contract.eject({"from": accounts[0]})
+
+  assert contract.blackRemaining() == 1027
+  assert contract.goldRemaining() == 0
+
+  contract.eject({"from": accounts[0]})
+
+  assert contract.blackRemaining() == 777
+  assert contract.goldRemaining() == 0
+
+  contract.eject({"from": accounts[0]})
+
+  assert contract.blackRemaining() == 527
+  assert contract.goldRemaining() == 0
+
+  contract.eject({"from": accounts[0]})
+
+  assert contract.blackRemaining() == 277
+  assert contract.goldRemaining() == 0
+
+  contract.eject({"from": accounts[0]})
+
+  assert contract.blackRemaining() == 27
+  assert contract.goldRemaining() == 0
+
+  contract.eject({"from": accounts[0]})
+  
+  assert contract.blackRemaining() == 0
+  assert contract.goldRemaining() == 0
+
 
 
 
