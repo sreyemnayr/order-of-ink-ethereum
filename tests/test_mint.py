@@ -150,7 +150,7 @@ def test_signature(accounts, contract, signing_account):
 @pytest.mark.private
 def test_allowlist_mints(accounts, contract, signing_account):
   signer = SignatureFactory(verifyingContract=contract.address, signer=signing_account);
-
+  contract.pauseSwitch({"from": accounts[0]})
   # 100 Black Mints in Private Sale
 
   for i in range(1,11):
@@ -171,7 +171,7 @@ def test_allowlist_mints(accounts, contract, signing_account):
 @pytest.mark.revert
 def test_bad_mints(accounts, contract, signing_account):
   signer = SignatureFactory(verifyingContract=contract.address, signer=signing_account);
-
+  contract.pauseSwitch({"from": accounts[0]})
   with reverts():
     for i in range(0,10):
       contract.getInked(
@@ -189,7 +189,7 @@ def test_bad_mints(accounts, contract, signing_account):
 @pytest.mark.sellout
 def test_out_of_mints(accounts, contract, signing_account):
   signer = SignatureFactory(verifyingContract=contract.address, signer=signing_account);
-  
+  contract.pauseSwitch({"from": accounts[0]})
   for i in range(1,23):
     contract.getInked(
       signer.signature(accounts[i].address, 0, 255),
@@ -232,6 +232,8 @@ def test_out_of_mints(accounts, contract, signing_account):
 @pytest.mark.mint
 @pytest.mark.public
 def test_public_mint(accounts, contract, signing_account):
+  contract.pauseSwitch({"from": accounts[0]})
+
   with reverts():
     contract.getInked("", (accounts[1].address, 0, 1), 1, 0, 0, {"from": accounts[1], "value": Wei("0.123 ether")})
 
@@ -263,6 +265,7 @@ def test_public_mint(accounts, contract, signing_account):
 @pytest.mark.private
 def test_free_mints(accounts, contract, signing_account):
   signer = SignatureFactory(verifyingContract=contract.address, signer=signing_account);
+  contract.pauseSwitch({"from": accounts[0]})
 
   contract.getInked(
       signer.signature(accounts[1].address, 1, 3),
@@ -311,7 +314,7 @@ def test_free_mints(accounts, contract, signing_account):
 
 def test_sellout_withdraw(accounts, contract, signing_account):
   signer = SignatureFactory(verifyingContract=contract.address, signer=signing_account);
-
+  contract.pauseSwitch({"from": accounts[0]})
   
   for i in range(1,23):
     contract.getInked(
@@ -357,7 +360,7 @@ def test_sellout_withdraw(accounts, contract, signing_account):
 
 def test_token_uri(accounts, contract, signing_account):
   signer = SignatureFactory(verifyingContract=contract.address, signer=signing_account);
-
+  contract.pauseSwitch({"from": accounts[0]})
   
   for i in range(0,20):
     contract.getInked(
@@ -382,6 +385,7 @@ def test_token_uri(accounts, contract, signing_account):
 @pytest.mark.choices
 def test_choices(accounts, contract, signing_account):
   signer = SignatureFactory(verifyingContract=contract.address, signer=signing_account)
+  contract.pauseSwitch({"from": accounts[0]})
 
   contract.getInked(
       signer.signature(accounts[1].address, 0, 255),
@@ -411,7 +415,8 @@ def test_choices(accounts, contract, signing_account):
 def test_combines(accounts, contract, signing_account):
   signer = SignatureFactory(verifyingContract=contract.address, signer=signing_account)
   # break in interactive mode
-  
+  contract.pauseSwitch({"from": accounts[0]})
+
   contract.getInked(
     signer.signature(accounts[1].address, 0, 255),
     (accounts[1].address, 0, 255),
@@ -445,7 +450,8 @@ def test_combines(accounts, contract, signing_account):
 @pytest.mark.eject
 def test_eject(accounts, contract, signing_account):
   signer = SignatureFactory(verifyingContract=contract.address, signer=signing_account)
-
+  contract.pauseSwitch({"from": accounts[0]})
+  
   for i in range(1,23):
     contract.getInked(
       signer.signature(accounts[i].address, 0, 255),

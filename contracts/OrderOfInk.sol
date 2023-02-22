@@ -71,7 +71,7 @@ contract OrderOfInk is ERC2981, EIP712, ERC721AQueryable, Ownable, RevokableDefa
     /* *////R/0///R////]█████████▓▓╫███▓▌▒,▀███████████████╫█
     /* */////R/R//////'`██████████▓████▓▓╬║▌ ║╣▌▓▓╬╠▒▓╚=/▒▓ █
     /* *//////0/////////'╫███████████████▓▓▓▌╬▒▌▓█▒╣╬▓  ]▓▓▄▐-
-    /* *///////R/////////////─████████████████████▓▄▓▒▌▓▌╓╓╠╬▓╙ █ .
+    /* */error Paused();//─████████████████████▓▄▓▒▌▓▌╓╓╠╬▓╙ █ .
     /* */error InvalidMintKey();///╙╙▀╟█▌▄▌▄╠██████████████▓▀╩ ¬
     /* */error ExceedsMaxSupply();//╬╟╙▓█MΦW▄╫▓▓██▀▓█▌╬▀▓▓╬╙╛b
     /* */error ExceedsAllowance();//▓▌▀╙▀█     ╙▓██▌█ ┘╠█
@@ -110,7 +110,7 @@ contract OrderOfInk is ERC2981, EIP712, ERC721AQueryable, Ownable, RevokableDefa
     /* A      ╓å╠╠╠╠╠╠╠╠╠▓╠╠╠╠╠╠╠╠╠╠╠╠▒╓ */    address private _signer;  
     /* R    φ╠╠╠╠╠╠╠╠╠╠╠╠█╠╠╠╠╠╠╠╬▒╠╠╠╠╠╠╔ */    address private _receiver;
     /* S  ╓╠╠╠╠╠╠╠╠╠╠╠╠╠╠█╩╩╩▓██▓╬╬╬╬╬▀▀▓██▄ */    
-    /*   φ╠╠╠╠╠╠╠╠╠╠╩╙   ▓ ╓█╙  ╙╠╠╠╠╠╠╠╠╠╠╬╬ */
+    /*   φ╠╠╠╠╠╠╠╠╠╠╩╙   ▓ ╓█╙  ╙╠╠╠╠╠╠╠╠╠╠╬╬ */  bool public paused = true;
     /*  φ╠╠╠╠╠╠╠╠╠╚      ▓╓█      ^╠╠╠╠╠╠╠╠╠╠╦ */   string public baseURI;
     /* ]╠╠╠╠╠╠╠╠╠╙       ██─        ╙╠╠╠╠╠╠╠╠╠⌐ */   uint8 public session = 1;
     /* ╠╠╠╠╠╠╠╠╠╙        █┌          ╚╠╠╠╠╠╠╠╠▒ */     uint private _goldMinted = 0;
@@ -155,6 +155,8 @@ contract OrderOfInk is ERC2981, EIP712, ERC721AQueryable, Ownable, RevokableDefa
       uint8 howManyGold,        // how many 1 of 1 editions to mint
       uint24 choiceData         // a packed integer representing artist preference
     ) external payable {
+
+      if(paused) revert Paused();
 
       uint256 nextTokenId;
       uint8 howMany = howManyGold + howManyBlack;
@@ -321,7 +323,7 @@ contract OrderOfInk is ERC2981, EIP712, ERC721AQueryable, Ownable, RevokableDefa
      /*          ╘    ▐     p   */    _mint(_TEAM, _goldRemaining);
      /*           \            ,*/   _setExtraDataAt(nextTokenId, 1); }}
      /*            \         ,*/    
-     /*            '"¬───¬`'*/     
+     /*            '"¬───¬`'*/     function pauseSwitch() public onlyOwner { paused = !paused; }
 
 
     /*         ,▄████████▌╥ */
